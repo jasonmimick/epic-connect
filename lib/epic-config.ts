@@ -13,35 +13,21 @@ export const EPIC = {
 
 // Every patient-facing scope Epic supports — "GOD mode"
 // Epic will silently drop scopes the app isn't approved for; no error.
+// Start minimal — Epic silently drops unapproved scopes but may reject unknown ones entirely
+// Expand back once the basic flow works
 export const EPIC_SCOPES = [
   "openid",
   "fhirUser",
-  "launch/patient",
   "patient/Patient.read",
   "patient/Observation.read",
   "patient/Condition.read",
   "patient/MedicationRequest.read",
-  "patient/MedicationStatement.read",
   "patient/AllergyIntolerance.read",
   "patient/Immunization.read",
   "patient/Procedure.read",
   "patient/Encounter.read",
   "patient/DiagnosticReport.read",
   "patient/DocumentReference.read",
-  "patient/CarePlan.read",
-  "patient/CareTeam.read",
-  "patient/Goal.read",
-  "patient/Coverage.read",
-  "patient/Device.read",
-  "patient/ServiceRequest.read",
-  "patient/Appointment.read",
-  "patient/Communication.read",
-  "patient/QuestionnaireResponse.read",
-  "patient/Provenance.read",
-  "patient/RelatedPerson.read",
-  "patient/Organization.read",
-  "patient/Practitioner.read",
-  "patient/Location.read",
 ].join(" ");
 
 // Epic sandbox test patients — use these to log in during OAuth
