@@ -69,16 +69,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${appUrl}/?error=no_patient_context`);
   }
 
-  // Set cookie directly on the redirect response — cookies().set() doesn't
-  // attach to NextResponse.redirect() in Next.js Route Handlers
-  const response = NextResponse.redirect(`${appUrl}/dashboard`);
   const { value, options } = buildSessionCookie({
     accessToken: token.access_token,
     patientId,
     tokenType: token.token_type ?? "Bearer",
     expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000,
   });
-  response.cookies.set(COOKIE_NAME, value, options);
+  console.log("Setting session cookie, patientId:", patientId);
 
+  // Return a 200 HTML response that sets the cookie then JS-redirects to /dashboard.
+  // Using a redirect (307) response with Set-Cookie is unreliable across browsers/CDNs.
+  const response = new NextResponse(
+    `<!DOCTYPE html><html><head>
+      <meta http-equiv="refresh" content="0;url=/dashboard">
+    </head><body>
+      <script>window.location.replace('/dashboard')</script>
+    </body></html>`,
+    { status: 200, headers: { "Content-Type": "text/html" } }
+  );
+  response.cookies.set(COOKIE_NAME, value, options);
   return response;
 }
