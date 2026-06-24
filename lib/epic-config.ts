@@ -18,7 +18,6 @@ export const EPIC = {
 export const EPIC_SCOPES = [
   "openid",
   "fhirUser",
-  "launch/patient",
   "patient/Patient.read",
   "patient/Observation.read",
   "patient/Condition.read",
