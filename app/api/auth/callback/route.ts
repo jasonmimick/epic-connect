@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { EPIC } from "@/lib/epic-config";
-import { saveSession } from "@/lib/session";
+import { buildSessionCookie, COOKIE_NAME } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -12,14 +12,14 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get("state");
   const error = searchParams.get("error");
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
+
   if (error) {
-    return NextResponse.redirect(
-      new URL(`/?error=${encodeURIComponent(error)}`, req.url)
-    );
+    return NextResponse.redirect(`${appUrl}/?error=${encodeURIComponent(error)}`);
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL("/?error=missing_params", req.url));
+    return NextResponse.redirect(`${appUrl}/?error=missing_params`);
   }
 
   // Verify state to prevent CSRF
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const verifier = store.get("pkce_verifier")?.value;
 
   if (!savedState || savedState !== state) {
-    return NextResponse.redirect(new URL("/?error=state_mismatch", req.url));
+    return NextResponse.redirect(`${appUrl}/?error=state_mismatch`);
   }
 
   // Exchange code for token
@@ -40,7 +40,6 @@ export async function GET(req: NextRequest) {
     code_verifier: verifier ?? "",
   });
 
-  // Confidential clients also send client_secret via Basic auth
   const credentials = Buffer.from(
     `${process.env.EPIC_CLIENT_ID}:${process.env.EPIC_CLIENT_SECRET}`
   ).toString("base64");
@@ -57,27 +56,29 @@ export async function GET(req: NextRequest) {
   if (!tokenRes.ok) {
     const err = await tokenRes.text();
     console.error("Token exchange failed:", err);
-    return NextResponse.redirect(new URL("/?error=token_exchange_failed", req.url));
+    return NextResponse.redirect(`${appUrl}/?error=token_exchange_failed`);
   }
 
   const token = await tokenRes.json();
+  console.log("Token response keys:", Object.keys(token));
 
-  // Epic returns the patient ID in the token response for patient-scoped tokens
-  const patientId = token.patient;
+  // Epic returns patient in token for patient-scoped tokens
+  // Fall back to sub (patient FHIR ID) if patient field absent
+  const patientId = token.patient ?? token.sub;
   if (!patientId) {
-    return NextResponse.redirect(new URL("/?error=no_patient_context", req.url));
+    return NextResponse.redirect(`${appUrl}/?error=no_patient_context`);
   }
 
-  await saveSession({
+  // Set cookie directly on the redirect response — cookies().set() doesn't
+  // attach to NextResponse.redirect() in Next.js Route Handlers
+  const response = NextResponse.redirect(`${appUrl}/dashboard`);
+  const { value, options } = buildSessionCookie({
     accessToken: token.access_token,
     patientId,
     tokenType: token.token_type ?? "Bearer",
     expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000,
   });
+  response.cookies.set(COOKIE_NAME, value, options);
 
-  // Clean up PKCE cookies
-  store.delete("pkce_verifier");
-  store.delete("oauth_state");
-
-  return NextResponse.redirect(new URL("/dashboard", req.url));
+  return response;
 }

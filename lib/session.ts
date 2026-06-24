@@ -3,7 +3,7 @@
 
 import { cookies } from "next/headers";
 
-const COOKIE_NAME = "epic_session";
+export const COOKIE_NAME = "epic_session";
 const SESSION_SECRET = process.env.SESSION_SECRET!;
 
 export interface EpicSession {
@@ -28,16 +28,27 @@ function decrypt(encrypted: string, secret: string): string {
   return nums.map((n, i) => String.fromCharCode(n ^ key.charCodeAt(i))).join("");
 }
 
+export function buildSessionCookie(session: EpicSession): {
+  value: string;
+  options: { httpOnly: boolean; secure: boolean; sameSite: "lax"; maxAge: number; path: string };
+} {
+  const encrypted = encrypt(JSON.stringify(session), SESSION_SECRET);
+  return {
+    value: encrypted,
+    options: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+      maxAge: 3600,
+      path: "/",
+    },
+  };
+}
+
 export async function saveSession(session: EpicSession) {
   const store = await cookies();
-  const encrypted = encrypt(JSON.stringify(session), SESSION_SECRET);
-  store.set(COOKIE_NAME, encrypted, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 3600, // 1 hour — matches Epic's default token lifetime
-    path: "/",
-  });
+  const { value, options } = buildSessionCookie(session);
+  store.set(COOKIE_NAME, value, options);
 }
 
 export async function getSession(): Promise<EpicSession | null> {
