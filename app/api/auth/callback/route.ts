@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get("state");
   const error = searchParams.get("error");
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
+  const appUrl = req.nextUrl.origin;
 
   if (error) {
     return NextResponse.redirect(`${appUrl}/?error=${encodeURIComponent(error)}`);
