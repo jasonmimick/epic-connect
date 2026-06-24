@@ -1,110 +1,150 @@
-# epic-connect — Session Handoff
+# epic-connect — Agent Handoff
 
 ## What This Is
 
-A standalone Next.js app that does SMART on FHIR OAuth against Epic's sandbox, pulls all available patient FHIR data, and displays it. Intended as the Epic integration bridge for ChartKeep and Pruva.
+A Next.js app that does SMART on FHIR OAuth against Epic's sandbox, pulls all available patient FHIR data, and displays it in a dashboard. It is the Epic integration bridge for the CareHub portfolio (Pruva, Chartkeep).
 
 **Live:** https://epic-connect-rho.vercel.app  
 **Repo:** https://github.com/jasonmimick/epic-connect  
-**Vercel project:** jason-mimicks-projects/epic-connect
+**Vercel project:** `jason-mimicks-projects/epic-connect`  
+**Status: FULLY WORKING END TO END as of 2026-06-24**
 
 ---
 
-## What Was Built Today
+## It Works
 
-### App structure
-```
-app/
-  page.tsx                    # Landing page — "Connect with Epic MyChart" button + test creds
-  dashboard/page.tsx          # Patient data dashboard — all FHIR resources + raw viewer
-  api/auth/launch/route.ts    # Step 1: builds Epic OAuth URL + redirects
-  api/auth/callback/route.ts  # Step 2: exchanges code for token, sets session, redirects
-  api/auth/logout/route.ts    # Clears session cookie
-  api/auth/debug/route.ts     # Debug: shows what client_id/redirect_uri/scopes are being sent
-  api/fhir/route.ts           # FHIR proxy: fetches any resource from Epic using stored token
-lib/
-  epic-config.ts              # Sandbox URLs, scopes, test patient credentials
-  pkce.ts                     # PKCE code challenge generation (required by Epic)
-  session.ts                  # Encrypted HTTP-only cookie session
-  fhir-client.ts              # FHIR R4 fetcher — 16 resource types in parallel
-```
+The full OAuth → dashboard flow is confirmed working:
 
-### Epic app registration
-- Registered at https://fhir.epic.com
-- Status: **Test/Sandbox mode** (not Draft — this was a blocker)
-- Audience: **Patient** profile only
-- Auto client distribution: **USCDI v3**
-- Confidential client: **Yes**
-- Registered redirect URIs:
-  - `http://localhost:3000/api/auth/callback`
-  - `https://epic-connect.vercel.app/api/auth/callback`
-  - `https://epic-connect-rho.vercel.app/api/auth/callback`
+1. User visits https://epic-connect-rho.vercel.app
+2. Clicks "Connect with Epic MyChart"
+3. Logs in with a sandbox test patient
+4. Grants consent on Epic's screen
+5. Lands on `/dashboard` showing all FHIR data
 
-### Credentials (in .env.local — gitignored)
-- Non-Production Client ID: `473579e8-4c7a-4f72-8eb9-05059bdd7a84` ← use this for sandbox
-- Production Client ID: `8e68d7d9-3bcc-432c-8559-699c35798a6d` ← for live customer Epic instances
-- Sandbox Client Secret: in `.env.local`
-
-### Vercel env vars set
-- `EPIC_CLIENT_ID` = non-production client ID
-- `EPIC_CLIENT_SECRET` = sandbox secret
-- `EPIC_REDIRECT_URI` = `https://epic-connect-rho.vercel.app/api/auth/callback`
-- `SESSION_SECRET` = `change-this-to-a-real-secret-in-prod`
-- `NEXT_PUBLIC_APP_URL` = `https://epic-connect.vercel.app` (no longer used in code)
+Confirmed with test patient `fhircamila / epicepic1` — dashboard showed 7 conditions, 38 observations, 4 diagnostic reports, 13 document references, etc.
 
 ---
 
-## Bugs Fixed Today
+## Epic App Registration
 
-| Bug | Fix |
+Registered at https://fhir.epic.com  
+**Status: Test/Sandbox mode** (must NOT be in Draft — was a major blocker)
+
+| Field | Value |
 |---|---|
-| `OAuth2 Error — something went wrong authorizing client` | App was in Draft status — had to fill in description + T&C URL + click "Ready for Sandbox" |
-| Same OAuth error persisted | `launch/patient` scope causes Epic sandbox to reject the request — removed it |
-| Wrong client ID on Vercel | Production client ID doesn't work with sandbox — swapped to non-production |
-| Wrong redirect URI | `epic-connect.vercel.app` is a different Vercel project — URL is `epic-connect-rho.vercel.app` |
-| Session cookie not sticking | `cookies().set()` doesn't attach to `NextResponse.redirect()` — fixed by returning 200 HTML + JS redirect |
-| Dashboard redirects back to `/` | Above cookie fix — still confirming this works |
+| Audience | Patient |
+| Auto client distribution | USCDI v3 |
+| Confidential client | Yes |
+| Scopes | All patient/* scopes selected |
 
----
+**Registered redirect URIs:**
+- `http://localhost:3000/api/auth/callback`
+- `https://epic-connect.vercel.app/api/auth/callback`
+- `https://epic-connect-rho.vercel.app/api/auth/callback`
 
-## Current State / What's Left
+**Client IDs:**
+- Non-Production: `473579e8-4c7a-4f72-8eb9-05059bdd7a84` ← use this for sandbox/fhir.epic.com
+- Production: `8e68d7d9-3bcc-432c-8559-699c35798a6d` ← for live customer Epic instances only
 
-### Still unconfirmed
-- Session cookie fix (200 + JS redirect) was just pushed — **not yet verified working end-to-end**
-- Dashboard may not load if token doesn't contain `patient` field (we fall back to `sub` but this is unverified)
-
-### Known issue
-- Without `launch/patient` scope, Epic may not return the patient ID in the token response
-- Fallback to `token.sub` is in place — need to verify this works with a real login
-
-### Next session should
-1. Confirm dashboard loads after login at https://epic-connect-rho.vercel.app
-2. Check Vercel logs after a login attempt — look for `patientId:` in the callback log
-3. If `no_patient_context` error appears, investigate using the `/userinfo` endpoint to get patient ID
-4. Once dashboard loads, design the data push to ChartKeep's FastAPI backend
+**Credentials:** in `.env.local` (gitignored) and Vercel env vars.
 
 ---
 
 ## Sandbox Test Patients
 
-| Name | Username | Password |
-|---|---|---|
-| Camila Lopez | `fhircamila` | `epicepic1` |
-| Derrick Lin | `fhirderrick` | `epicepic1` |
-| Jason Argonaut | `fhirjason` | `epicepic1` |
-| Jessica Argonaut | `fhirjessica` | `epicepic1` |
+All passwords: `epicepic1`
+
+| Name | Username |
+|---|---|
+| Camila Lopez | `fhircamila` |
+| Derrick Lin | `fhirderrick` |
+| Jason Argonaut | `fhirjason` |
+| Jessica Argonaut | `fhirjessica` |
 
 ---
 
-## Vercel Workflow
+## Architecture
 
-**Do not run `vercel --prod` manually.** GitHub auto-deploy is active.  
-Push to `main` → Vercel deploys automatically to https://epic-connect-rho.vercel.app
+```
+app/
+  page.tsx                    # Landing — Connect button + test creds
+  dashboard/page.tsx          # Server component — fetches all FHIR data, renders dashboard
+  api/auth/launch/route.ts    # Builds Epic OAuth URL, stores PKCE + state cookies, redirects
+  api/auth/callback/route.ts  # Exchanges code for token, sets session cookie, JS-redirects to /dashboard
+  api/auth/logout/route.ts    # Clears session cookie
+  api/auth/debug/route.ts     # GET /api/auth/debug — shows clientId, redirectUri, scopes in use
+  api/fhir/route.ts           # Proxy: client requests ?resource=X, server fetches from Epic
+lib/
+  epic-config.ts              # Sandbox URLs, scopes (no launch/patient), test patient creds
+  pkce.ts                     # PKCE code challenge (SHA-256, base64url)
+  session.ts                  # HTTP-only cookie session — plain base64 JSON encoding
+  fhir-client.ts              # Fetches 16 FHIR resource types in parallel from Epic
+```
 
 ---
 
-## Bigger Picture
+## Key Technical Decisions & Why
 
-epic-connect is the Epic OAuth bridge for the CareHub portfolio. Next step is to pipe the fetched FHIR data into ChartKeep's local vault (FastAPI endpoint) or Pruva's FHIR lake. ChartKeep already ingests FHIR JSON — just needs an HTTP endpoint that accepts bundles.
+### No `launch/patient` scope
+Epic's sandbox returns "The request is invalid" if `launch/patient` is included in standalone patient launch. This scope is for EHR launch only (launched from inside Epic's UI). For standalone patient launch, omit it — Epic automatically returns `patient` in the token response when a patient authenticates with MyChart credentials.
 
-Also: a separate **Backend System** Epic app registration is needed for bulk/platform-level access (population queries, system-to-system JWT, no user login). Register separately at fhir.epic.com when ready.
+### Session cookie is plain base64 JSON
+Originally used XOR "encryption" which created comma-separated number strings. Epic access tokens are long JWTs (500+ chars) — XOR inflated these to 5000+ chars, silently exceeding the 4KB cookie limit. Cookie was dropped on every request. Base64 is ~33% overhead — well within limits. HTTP-only + Secure + HTTPS is sufficient protection.
+
+### Callback returns 200 HTML + JS redirect (not 307)
+`NextResponse.redirect()` with `Set-Cookie` is unreliable — some browsers/CDNs drop cookies on redirect responses. Instead the callback returns a 200 HTML page with `<script>window.location.replace('/dashboard')</script>`. Cookie is set on the 200 response, browser stores it, then navigates to dashboard.
+
+### `req.nextUrl.origin` for redirects
+Never use `NEXT_PUBLIC_APP_URL` for internal redirects. Always use `req.nextUrl.origin` — ensures redirects stay on the same domain regardless of which Vercel alias the user entered from.
+
+---
+
+## Vercel Setup
+
+**GitHub auto-deploy is active.** Push to `main` → Vercel deploys automatically. Never run `vercel --prod` manually.
+
+**Env vars (production):**
+- `EPIC_CLIENT_ID` = `473579e8-4c7a-4f72-8eb9-05059bdd7a84`
+- `EPIC_CLIENT_SECRET` = sandbox client secret (in Vercel dashboard)
+- `EPIC_REDIRECT_URI` = `https://epic-connect-rho.vercel.app/api/auth/callback`
+- `SESSION_SECRET` = `change-this-to-a-real-secret-in-prod` (unused now but harmless)
+- `NEXT_PUBLIC_APP_URL` = `https://epic-connect.vercel.app` (unused now but harmless)
+
+**Important:** `epic-connect.vercel.app` and `epic-connect-rho.vercel.app` are DIFFERENT Vercel projects. Our app is always at `epic-connect-rho.vercel.app`.
+
+---
+
+## Local Dev
+
+```bash
+cd /Users/jason/business/epic-connect
+npm run dev   # starts on :3000
+```
+
+`.env.local` has all credentials. Debug endpoint: `http://localhost:3000/api/auth/debug`
+
+---
+
+## What's Next
+
+The dashboard works and pulls real Epic patient data. The logical next steps:
+
+1. **Push FHIR data to Chartkeep SaaS** — after OAuth, POST the FHIR bundles to Chartkeep's `/api/ingest` endpoint. epic-connect becomes the Epic data source, Chartkeep becomes the destination.
+
+2. **Backend System Epic app** — register a separate app at fhir.epic.com with Audience: Backend System for bulk/population-level queries (system-to-system JWT, no user login). Needed for Pruva's payer-side data access.
+
+3. **Add to Pruva** — wire the same SMART on FHIR flow into Pruva so patients can pull their Epic records directly into their Pruva health card.
+
+4. **EHR launch** — register a separate Clinician/Admin audience app for launching from inside Epic's UI (requires `launch` scope, not `launch/patient`).
+
+---
+
+## Business Context
+
+epic-connect is part of the CareHub portfolio:
+- **Pruva** — FHIR compliance SaaS for health insurers (pruva-poc.vercel.app)
+- **Chartkeep** — personal health vault, local-first + SaaS (chartkeep-green.vercel.app)
+- **Cairn** — AI service mesh / LLM governance (cairnlabs.io)
+- **epic-connect** — this repo, Epic OAuth bridge
+
+All products under `/Users/jason/business/`. Portfolio CLAUDE.md at `/Users/jason/business/CLAUDE.md`.
